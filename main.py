@@ -64,3 +64,29 @@ def clean_keys(items: List[Dict[str, Any]]):
         cleaned_items.append(cleaned)
 
     return cleaned_items
+
+@app.post("/split-project-field")
+def split_project_field(items: List[Dict[str, Any]]):
+    results: List[Dict[str, Any]] = []
+
+    for item in items:
+        data = dict(item)  # copy original json
+
+        value = data.get("Project")
+        if isinstance(value, str):
+            # Match: number (with optional dots) - rest of text
+            match = re.match(r'^([0-9.]+)\s*-\s*(.*)$', value.strip())
+            if match:
+                project_code = match.group(1).strip()
+                project_name = match.group(2).strip()
+
+                # Remove original Project field
+                data.pop("Project", None)
+
+                # Add new fields
+                data["Project Code"] = project_code
+                data["Project"] = project_name
+
+        results.append(data)
+
+    return results
