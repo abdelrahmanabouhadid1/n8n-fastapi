@@ -91,3 +91,67 @@ def split_project_field(items: List[Dict[str, Any]]):
         results.append(data)
 
     return results
+
+@app.post("/merge-old-new")
+def merge_old_new(items: List[Dict[str, Any]]):
+    # -----------------------------------
+    # 1) Classify rows into OLD vs NEW
+    # -----------------------------------
+    old_projects = {}   # key = Project Code
+    new_by_code = {}    # key = Project Code
+
+    for item in items:
+        data = dict(item)
+
+        # Skip rows without Project Code
+        if "Project Code" not in data:
+            continue
+
+        code = str(data.get("Project Code", "")).strip()
+
+        # OLD rows contain "#"
+        if "#" in data:
+            old_projects[code] = data
+        else:
+            # NEW dataset rows
+            new_by_code[code] = data
+
+    # -----------------------------------
+    # 2) Compute add / remove / common
+    # -----------------------------------
+    old_codes = set(old_projects.keys())
+    new_codes = set(new_by_code.keys())
+
+    common_codes = old_codes & new_codes
+    add_codes    = new_codes - old_codes
+    remove_codes = old_codes - new_codes
+
+    # -----------------------------------
+    # 3) Build final merged list
+    # -----------------------------------
+    final = []
+
+    # 3.a Merge & keep old rows
+    for code, old_data in old_projects.items():
+
+        # Skip removed ones
+        if code in remove_codes:
+            continue
+
+        # Common → merge old + new (new overwrites)
+        if code in common_codes:
+            merged = dict(old_data)
+            merged.update(new_by_code[code])
+            final.append(merged)
+
+        else:
+            # Not removed + not common → keep old as-is
+            final.append(old_data)
+
+    # 3.b Add new-only rows
+    for code in add_codes:
+        new_row = new_by_code.get(code)
+        if new_row:
+            final.append(dict(new_row))
+
+    return final
