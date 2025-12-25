@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta
 from fastapi import FastAPI
 from typing import List, Dict, Any
 
@@ -155,3 +156,50 @@ def merge_old_new(items: List[Dict[str, Any]]):
             final.append(dict(new_row))
 
     return final
+
+def excel_serial_to_date_str(value):
+    """
+    Convert an Excel serial date to 'DD/MM/YYYY'.
+    If value is empty/invalid, return empty string or original value.
+    """
+    if value in (None, "", 0):
+        return ""
+
+    try:
+        # Work with strings, ints, or floats
+        s = str(value).strip()
+        if not s:
+            return ""
+
+        n = int(float(s))
+
+        # Fix cases like 452890 -> 45289 (extra trailing zero)
+        if n > 60000:
+            n = n // 10
+
+        # Excel base date workaround (1900 leap year bug)
+        base_date = datetime(1899, 12, 30)
+        d = base_date + timedelta(days=n)
+
+        return d.strftime("%d/%m/%Y")
+
+    except Exception:
+        # If conversion fails, return original value
+        return value
+
+
+@app.post("/convert-excel-dates")
+def convert_excel_dates(items: List[Dict[str, Any]]):
+    output_items: List[Dict[str, Any]] = []
+
+    for item in items:
+        row = dict(item)  # copy to avoid mutating original
+
+        for col in ["Opening-planned", "Date of Latest Update"]:
+            if col in row and row[col] not in (None, ""):
+                row[col] = excel_serial_to_date_str(row[col])
+
+        # Preserve order exactly
+        output_items.append(row)
+
+    return output_items
